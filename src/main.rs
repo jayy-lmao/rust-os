@@ -7,10 +7,9 @@ use core::panic::PanicInfo;
 mod vga_buffer;
 
 
-static HELLO: &[u8] = b"Yetus my feetus!";
 #[no_mangle] // dont mangle names
 pub extern "C" fn _start() -> ! {
-  vga_buffer::print_something();
+  println!("Hello + {:?}", "Woop");
 
   loop{}
 }

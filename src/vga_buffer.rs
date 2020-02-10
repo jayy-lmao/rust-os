@@ -1,6 +1,35 @@
 use core::fmt;
-use core::fmt::Write;
+// use core::fmt::Write;
 use volatile::Volatile;
+use lazy_static::lazy_static;
+use spin::Mutex;
+
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)))
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+
+}
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments){
+    use core::fmt::Write;
+    WRITER.lock().write_fmt(args).unwrap();
+}
+
+lazy_static! {
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+    column_position: 0,
+    color_code: ColourCode::new(Colour::White, Colour::Black),
+    buffer: unsafe { &mut  *(0xb8000 as *mut Buffer)},
+});
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +82,7 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-struct Writer {
+pub struct Writer {
     column_position: usize,
     color_code: ColourCode,
     buffer: &'static mut Buffer,
@@ -89,16 +118,15 @@ impl Writer {
     }
     pub fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
-            for col in 1..BUFFER_WIDTH {
+            for col in 0..BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
                 self.buffer.chars[row - 1][col].write(character);
             }
-            // self.clear_row(BUFFER_HEIGHT - 1);
-            self.column_position = 0;
         }
+        self.clear_row(BUFFER_HEIGHT - 1);
+        self.column_position = 0;
     }
     fn clear_row(&mut self, row: usize) {
-        /* TODO */
         let blank = ScreenChar {
             ascii_character: b' ',
             color_code: self.color_code,
@@ -115,20 +143,10 @@ impl fmt::Write for Writer {
     }
 }
 
-pub fn print_something() {
-    let mut writer = Writer {
-        column_position: 0,
-        color_code: ColourCode::new(Colour::Yellow, Colour::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    };
-    writer.write_byte(b'H');
-    writer.write_string("ello ");
-    writer.write_string("Poppet!\n");
-    writer.write_byte(b'H');
-    writer.write_byte(b'H');
-    writer.write_string("ello ");
-    writer.write_string("Poppet!\n");
-    writer.write_string("ello ");
-    writer.write_string("Poppet!\n");
-    write!(writer, "The numbers are {} and {}", 42, 1.0 / 3.0).unwrap();
-}
+// pub fn print_something() {
+//     let mut writer = Writer {
+//         column_position: 0,
+//         color_code: ColourCode::new(Colour::Yellow, Colour::Black),
+//         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+//     };
+// }
